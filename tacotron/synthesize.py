@@ -40,10 +40,10 @@ def run_live(args, checkpoint_path, hparams):
 			break
 
 def run_eval(args, checkpoint_path, output_dir, hparams, sentences):
-	eval_dir = os.path.join(output_dir, 'eval')
-	log_dir = os.path.join(output_dir, 'logs-eval')
+	eval_dir = os.path.join(output_dir, args.description, 'eval')
+	log_dir = os.path.join(output_dir, args.description, 'logs-eval')
 
-	if args.model == 'Tacotron-2':
+	if args.model == 'Tacotron-2' and args.tacotron_wav.lower() == 'false':
 		assert os.path.normpath(eval_dir) == os.path.normpath(args.mels_dir) #mels_dir = wavenet_input_dir
 
 	#Create output path if it doesn't exist
@@ -56,15 +56,18 @@ def run_eval(args, checkpoint_path, output_dir, hparams, sentences):
 	synth = Synthesizer()
 	synth.load(checkpoint_path, hparams)
 
+	if not args.tacotron_wav.lower() == 'true':
+		with open(os.path.join(eval_dir, 'map.txt'), 'w') as file:
+			for i, text in enumerate(tqdm(sentences)):
 
-	with open(os.path.join(eval_dir, 'map.txt'), 'w') as file:
+					mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None)
+					file.write('{}|{}|{}\n'.format(text, mel_filename[0], speaker_id[0]))
+		log('synthesized mel spectrograms at {}'.format(eval_dir))
+		return eval_dir
+	elif args.tacotron_wav.lower() == 'true':
 		for i, text in enumerate(tqdm(sentences)):
-			start = time.time()
-			mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None)
+			synth.synthesize([text], None, eval_dir, log_dir, None)
 
-			file.write('{}|{}|{}\n'.format(text, mel_filename[0], speaker_id[0]))
-	log('synthesized mel spectrograms at {}'.format(eval_dir))
-	return eval_dir
 
 def run_synthesis(args, checkpoint_path, output_dir, hparams):
 	GTA = (args.GTA == 'True')

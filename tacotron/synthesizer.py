@@ -79,11 +79,13 @@ class Synthesizer:
 		else:
 			linears, mels, alignments = self.session.run([self.linear_outputs, self.mel_outputs, self.alignments], feed_dict=feed_dict)
 
+
 		if basenames is None:
 			#Generate wav and read it
-			wav = audio.inv_mel_spectrogram(mels.T, hparams)
-			audio.save_wav(wav, 'temp.wav', sr=hparams.sample_rate) #Find a better way
-
+			os.makedirs(os.path.join(log_dir, 'taco_syn'), exist_ok=True)
+			wav = audio.inv_mel_spectrogram(mels[0].T, hparams)
+			audio.save_wav(wav, os.path.join(log_dir, 'taco_syn', texts[0] + '.wav'), sr=hparams.sample_rate) #Find a better way
+			'''
 			chunk = 512
 			f = wave.open('temp.wav', 'rb')
 			p = pyaudio.PyAudio()
@@ -100,6 +102,7 @@ class Synthesizer:
 			stream.close()
 
 			p.terminate()
+			'''
 			return
 
 
