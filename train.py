@@ -35,7 +35,7 @@ def prepare_run(args):
 	modified_hp = hparams.parse(args.hparams)
 	os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(args.tf_log_level)
 	run_name = args.name or args.model
-	log_dir = os.path.join(args.base_dir, 'logs-{}'.format(run_name))
+	log_dir = os.path.join(args.base_dir, 'logs-{}'.format(run_name), args.description)
 	os.makedirs(log_dir, exist_ok=True)
 	infolog.init(os.path.join(log_dir, 'Terminal_train_log'), run_name, args.slack_url)
 	return log_dir, modified_hp
@@ -106,10 +106,11 @@ def main():
 		help='Steps between writing checkpoints')
 	parser.add_argument('--eval_interval', type=int, default=10000,
 		help='Steps between eval on test data')
-	parser.add_argument('--tacotron_train_steps', type=int, default=120000, help='total number of tacotron training steps')
+	parser.add_argument('--tacotron_train_steps', type=float, default=float('inf'), help='total number of tacotron training steps')
 	parser.add_argument('--wavenet_train_steps', type=int, default=1300000, help='total number of wavenet training steps')
 	parser.add_argument('--tf_log_level', type=int, default=1, help='Tensorflow C++ log level.')
 	parser.add_argument('--slack_url', default=None, help='slack webhook notification destination link')
+	parser.add_argument('--description', default='test', type=str, help='used to distinguish different training')
 	args = parser.parse_args()
 
 	accepted_models = ['Tacotron', 'WaveNet', 'Tacotron-2']
