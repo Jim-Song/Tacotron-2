@@ -106,4 +106,9 @@ venv.bak/
 # Tacotron 2 oddities
 logs-*/
 training_data/
+*.out
+data
+tacotron_output
+train_data_dict.json
+training_data
 

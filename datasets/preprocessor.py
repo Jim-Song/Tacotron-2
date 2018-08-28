@@ -1,4 +1,4 @@
-import os
+import os, re
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
@@ -7,7 +7,7 @@ from datasets import audio
 from wavenet_vocoder.util import is_mulaw, is_mulaw_quantize, mulaw, mulaw_quantize
 
 
-def build_from_path(hparams, input_dirs, mel_dir, linear_dir, wav_dir, n_jobs=12, tqdm=lambda x: x):
+def build_from_path_ljspeech_and_Mailab(hparams, input_dirs, mel_dir, linear_dir, wav_dir, n_jobs=12, tqdm=lambda x: x):
 	"""
 	Preprocesses the speech dataset from a gven input path to given output directories
 
@@ -36,13 +36,78 @@ def build_from_path(hparams, input_dirs, mel_dir, linear_dir, wav_dir, n_jobs=12
 				basename = parts[0]
 				wav_path = os.path.join(input_dir, 'wavs', '{}.wav'.format(basename))
 				text = parts[2]
-				futures.append(executor.submit(partial(_process_utterance, mel_dir, linear_dir, wav_dir, basename, wav_path, text, hparams)))
+				futures.append(executor.submit(partial(_process_utterance, mel_dir, linear_dir, wav_dir, basename, wav_path, text, hparams, 1)))
 				index += 1
 
 	return [future.result() for future in tqdm(futures) if future.result() is not None]
 
 
-def _process_utterance(mel_dir, linear_dir, wav_dir, index, wav_path, text, hparams):
+
+def build_from_path_vctk(hparams, input_dir, mel_dir, linear_dir, wav_dir, n_jobs=12, tqdm=lambda x: x):
+	"""
+	Preprocesses the speech dataset from a gven input path to given output directories
+
+	Args:
+		- hparams: hyper parameters
+		- input_dir: input directory that contains the files to prerocess
+		- mel_dir: output directory of the preprocessed speech mel-spectrogram dataset
+		- linear_dir: output directory of the preprocessed speech linear-spectrogram dataset
+		- wav_dir: output directory of the preprocessed speech audio dataset
+		- n_jobs: Optional, number of worker process to parallelize across
+		- tqdm: Optional, provides a nice progress bar
+
+	Returns:
+		- A list of tuple describing the train examples. this should be written to train.txt
+	"""
+
+	# We use ProcessPoolExecutor to parallelize across processes, this is just for
+	# optimization purposes and it can be omited
+
+	executor = ProcessPoolExecutor(max_workers=n_jobs)
+	futures = []
+	ct = 1
+	input_dir = './' + input_dir
+	vctk_path_wav = os.path.join(input_dir, 'wav48')
+	vctk_path_txt = os.path.join(input_dir, 'txt')
+
+	for dir_name in os.listdir(vctk_path_wav):
+		# dir_name = 'p300'
+		# wav_dir  = '/home/pattern/songjinming/tts/data/vctk-Corpus/wav48/p300'
+		# txt_dir  = '/home/pattern/songjinming/tts/data/vctk-Corpus/txt/p300'
+		wav_dir2 = os.path.join(vctk_path_wav, dir_name)
+		txt_dir = os.path.join(vctk_path_txt, dir_name)
+		for wav_file in os.listdir(wav_dir2):
+			# wav_file  = 'p300_224.wav'
+			# name_file = 'p300_224'
+			# txt_file  = 'p300_224.txt'
+			# wav_root  = '/home/pattern/songjinming/tts/data/vctk-Corpus/wav48/p300/p300_224.wav'
+			# txt_root  = '/home/pattern/songjinming/tts/data/vctk-Corpus/txt/p300/p300_224.txt'
+			name_file = os.path.splitext(wav_file)[0]
+			basename = name_file
+			# some file is not wav file and just skip
+			# print(os.path.splitext(wav_file))
+			if not os.path.splitext(wav_file)[1] == '.wav':
+				continue
+			txt_file = '.'.join([name_file, 'txt'])
+			wav_path = os.path.join(wav_dir2, wav_file)
+			txt_path = os.path.join(txt_dir, txt_file)
+			# txt
+			# some wav files dont have correspond txt file
+			try:
+				with open(txt_path, 'r') as f:
+					text = f.read()
+				text = re.sub('\n', '', text)
+			except:
+				continue
+			# write
+			futures.append(executor.submit(partial(_process_utterance, mel_dir, linear_dir, wav_dir, basename, wav_path, text, hparams, ct)))
+		ct += 1
+	return [future.result() for future in tqdm(futures) if future.result() is not None]
+
+
+
+
+def _process_utterance(mel_dir, linear_dir, wav_dir, index, wav_path, text, hparams, speaker_id):
 	"""
 	Preprocesses a single utterance wav/text pair
 
@@ -140,4 +205,4 @@ def _process_utterance(mel_dir, linear_dir, wav_dir, index, wav_path, text, hpar
 	np.save(os.path.join(linear_dir, linear_filename), linear_spectrogram.T, allow_pickle=False)
 
 	# Return a tuple describing this training example
-	return (audio_filename, mel_filename, linear_filename, time_steps, mel_frames, text)
+	return (audio_filename, mel_filename, linear_filename, time_steps, mel_frames, text, speaker_id)

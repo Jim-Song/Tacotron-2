@@ -1,5 +1,5 @@
 import argparse
-import os
+import os, json
 from multiprocessing import cpu_count
 
 from datasets import preprocessor
@@ -7,17 +7,38 @@ from hparams import hparams
 from tqdm import tqdm
 
 
-def preprocess(args, input_folders, out_dir, hparams):
+def preprocess_vctk(args, input_folders, output_folder, hparams):
+	out_dir = os.path.join(output_folder, args.dataset)
 	mel_dir = os.path.join(out_dir, 'mels')
 	wav_dir = os.path.join(out_dir, 'audio')
 	linear_dir = os.path.join(out_dir, 'linear')
 	os.makedirs(mel_dir, exist_ok=True)
 	os.makedirs(wav_dir, exist_ok=True)
 	os.makedirs(linear_dir, exist_ok=True)
-	metadata = preprocessor.build_from_path(hparams, input_folders, mel_dir, linear_dir, wav_dir, args.n_jobs, tqdm=tqdm)
-	write_metadata(metadata, out_dir)
 
-def write_metadata(metadata, out_dir):
+	metadata = preprocessor.build_from_path_vctk(hparams, input_folders, mel_dir, linear_dir, wav_dir,
+												 args.n_jobs, tqdm=tqdm)
+	write_metadata(args.dataset, metadata, out_dir)
+
+
+
+
+
+def preprocess(args, input_folders, out_dir, hparams):
+	out_dir = os.path.join(out_dir, args.dataset)
+	mel_dir = os.path.join(out_dir, 'mels')
+	wav_dir = os.path.join(out_dir, 'audio')
+	linear_dir = os.path.join(out_dir, 'linear')
+	os.makedirs(out_dir, exist_ok=True)
+	os.makedirs(mel_dir, exist_ok=True)
+	os.makedirs(wav_dir, exist_ok=True)
+	os.makedirs(linear_dir, exist_ok=True)
+
+	metadata = preprocessor.build_from_path_ljspeech_and_Mailab(hparams, input_folders, mel_dir, linear_dir, wav_dir, args.n_jobs, tqdm=tqdm)
+	write_metadata(args.dataset, metadata, out_dir)
+
+
+def write_metadata(dataset, metadata, out_dir):
 	with open(os.path.join(out_dir, 'train.txt'), 'w', encoding='utf-8') as f:
 		for m in metadata:
 			f.write('|'.join([str(x) for x in m]) + '\n')
@@ -31,18 +52,29 @@ def write_metadata(metadata, out_dir):
 	print('Max mel frames length: {}'.format(max(int(m[4]) for m in metadata)))
 	print('Max audio timesteps length: {}'.format(max(m[3] for m in metadata)))
 
+	try:
+		with open('train_data_dict.json', 'r') as f:
+			train_data_dict = json.load(f)
+	except:
+		train_data_dict = {}
+	train_data_dict[dataset] = os.path.join(out_dir, 'train.txt')
+	with open('train_data_dict.json', 'w') as f:
+		json.dump(train_data_dict, f)
+
+
+
 def norm_data(args):
 
 	merge_books = (args.merge_books=='True')
 
 	print('Selecting data folders..')
-	supported_datasets = ['LJSpeech-1.0', 'LJSpeech-1.1', 'M-AILABS']
-	if args.dataset not in supported_datasets:
-		raise ValueError('dataset value entered {} does not belong to supported datasets: {}'.format(
-			args.dataset, supported_datasets))
+	#supported_datasets = ['LJSpeech-1.0', 'LJSpeech-1.1', 'M-AILABS']
+	#if args.dataset not in supported_datasets:
+	#	raise ValueError('dataset value entered {} does not belong to supported datasets: {}'.format(
+	#		args.dataset, supported_datasets))
 
-	if args.dataset.startswith('LJSpeech'):
-		return [os.path.join(args.base_dir, args.dataset)]
+	if args.dataset == 'ljspeech':
+		return [args.data_path]
 
 
 	if args.dataset == 'M-AILABS':
@@ -57,7 +89,7 @@ def norm_data(args):
 			raise ValueError('Please enter a supported voice option to use from M-AILABS dataset! \n{}'.format(
 				supported_voices))
 
-		path = os.path.join(args.base_dir, args.language, 'by_book', args.voice)
+		path = os.path.join(args.data_path, args.language, 'by_book', args.voice)
 		supported_readers = [e for e in os.listdir(path) if os.path.isdir(os.path.join(path,e))]
 		if args.reader not in supported_readers:
 			raise ValueError('Please enter a valid reader for your language and voice settings! \n{}'.format(
@@ -75,12 +107,24 @@ def norm_data(args):
 
 			return [os.path.join(path, args.book)]
 
+	if args.dataset == 'vctk':
+		return args.data_path
+
+
+
+
 
 def run_preprocess(args, hparams):
 	input_folders = norm_data(args)
 	output_folder = os.path.join(args.base_dir, args.output)
 
-	preprocess(args, input_folders, output_folder, hparams)
+	if args.dataset == 'ljspeech':
+		preprocess(args, input_folders, output_folder, hparams)
+	if args.dataset == 'M-AILABS':
+		args.dataset = args.dataset + '_' + args.reader
+		preprocess(args, input_folders, output_folder, hparams)
+	if args.dataset == 'vctk':
+		preprocess_vctk(args, input_folders, output_folder, hparams)
 
 
 def main():
@@ -89,14 +133,16 @@ def main():
 	parser.add_argument('--base_dir', default='')
 	parser.add_argument('--hparams', default='',
 		help='Hyperparameter overrides as a comma-separated list of name=value pairs')
-	parser.add_argument('--dataset', default='LJSpeech-1.1')
 	parser.add_argument('--language', default='en_US')
 	parser.add_argument('--voice', default='female')
 	parser.add_argument('--reader', default='mary_ann')
-	parser.add_argument('--merge_books', default='False')
+	parser.add_argument('--merge_books', default='True')
 	parser.add_argument('--book', default='northandsouth')
 	parser.add_argument('--output', default='training_data')
 	parser.add_argument('--n_jobs', type=int, default=cpu_count())
+	parser.add_argument('--dataset', type=str, choices=['THCHS', 'aishell', 'ljspeech', 'M-AILABS', 'vctk'])
+	parser.add_argument('--data_path', type=str, default='data/LJSpeech-1.1')
+
 	args = parser.parse_args()
 
 	modified_hp = hparams.parse(args.hparams)
@@ -108,3 +154,12 @@ def main():
 
 if __name__ == '__main__':
 	main()
+'''
+python3 preprocess.py --dataset ljspeech --data_path 'data/LJSpeech-1.1'
+python3 preprocess.py --dataset M-AILABS --language en_US --voice female --reader mary_ann --merge_books True --data_path data
+python3 preprocess.py --dataset M-AILABS --language en_US --voice female --reader judy_bieber --merge_books True --data_path data
+python3 preprocess.py --dataset M-AILABS --language en_US --voice male --reader elliot_miller --merge_books True --data_path data
+python3 preprocess.py --dataset M-AILABS --language en_UK --voice female --reader elizabeth_klett --merge_books True --data_path data
+python3 preprocess.py --dataset vctk --data_path data/VCTK-Corpus
+
+'''
