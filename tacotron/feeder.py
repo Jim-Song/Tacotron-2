@@ -16,7 +16,7 @@ class Feeder:
 		Feeds batches of data into queue on a background thread.
 	"""
 
-	def __init__(self, coordinator, metadata_filename, hparams):
+	def __init__(self, coordinator, metadata_filename_list, hparams):
 		super(Feeder, self).__init__()
 		self._coord = coordinator
 		self._hparams = hparams
@@ -25,13 +25,36 @@ class Feeder:
 		self._test_offset = 0
 
 		# Load metadata
-		self._mel_dir = os.path.join(os.path.dirname(metadata_filename), 'mels')
-		self._linear_dir = os.path.join(os.path.dirname(metadata_filename), 'linear')
-		with open(metadata_filename, encoding='utf-8') as f:
-			self._metadata = [line.strip().split('|') for line in f]
-			frame_shift_ms = hparams.hop_size / hparams.sample_rate
-			hours = sum([int(x[4]) for x in self._metadata]) * frame_shift_ms / (3600)
-			log('Loaded metadata for {} examples ({:.2f} hours)'.format(len(self._metadata), hours))
+		self._metadata = []
+		id_num = 0
+		for item in metadata_filename_list:
+			basedir = os.path.dirname(item)
+			_mel_dir = os.path.join(basedir, 'mels')
+			_linear_dir = os.path.join(basedir, 'linear')
+			_audio_dir = os.path.join(basedir, 'audio')
+			crrt_id_num = 0
+			print(item)
+			with open(item, encoding='utf-8') as f:
+				for line in f:
+					line = line.strip().split('|')
+					line[6] = int(line[6])
+					if line[6] > crrt_id_num:
+						crrt_id_num = line[6]
+					line[6] = line[6] + id_num
+					line[0] = os.path.join(_audio_dir, line[0])
+					line[1] = os.path.join(_mel_dir, line[1])
+					line[2] = os.path.join(_linear_dir, line[2])
+					self._metadata.append(line)
+			id_num += crrt_id_num
+		frame_shift_ms = hparams.hop_size / hparams.sample_rate
+		hours = sum([int(x[4]) for x in self._metadata]) * frame_shift_ms / (3600)
+		log('Loaded metadata for {} examples ({:.2f} hours)'.format(len(self._metadata), hours))
+		'''
+		#check the metadata
+		with open('text.txt', 'w') as f:
+			for item in self._metadata:
+				f.write(str(item) + '\n')
+		'''
 
 		#Train test split
 		if hparams.tacotron_test_size is None:
@@ -77,33 +100,38 @@ class Feeder:
 			tf.placeholder(tf.float32, shape=(None, None, hparams.num_mels), name='mel_targets'),
 			tf.placeholder(tf.float32, shape=(None, None), name='token_targets'),
 			tf.placeholder(tf.float32, shape=(None, None, hparams.num_freq), name='linear_targets'),
+			tf.placeholder(tf.float32, shape=(None, None), name='wavs'),
+			tf.placeholder(tf.int32, shape=(None,), name='identitities'),
 			tf.placeholder(tf.int32, shape=(None, ), name='targets_lengths'),
 			]
 
 			# Create queue for buffering data
-			queue = tf.FIFOQueue(8, [tf.int32, tf.int32, tf.float32, tf.float32, tf.float32, tf.int32], name='input_queue')
+			queue = tf.FIFOQueue(8, [tf.int32, tf.int32, tf.float32, tf.float32, tf.float32, tf.float32, tf.int32, tf.int32], name='input_queue')
 			self._enqueue_op = queue.enqueue(self._placeholders)
-			self.inputs, self.input_lengths, self.mel_targets, self.token_targets, self.linear_targets, self.targets_lengths = queue.dequeue()
+			self.inputs, self.input_lengths, self.mel_targets, self.token_targets, self.linear_targets, self.wavs, self.identities, self.targets_lengths = queue.dequeue()
 
 			self.inputs.set_shape(self._placeholders[0].shape)
 			self.input_lengths.set_shape(self._placeholders[1].shape)
 			self.mel_targets.set_shape(self._placeholders[2].shape)
 			self.token_targets.set_shape(self._placeholders[3].shape)
 			self.linear_targets.set_shape(self._placeholders[4].shape)
-			self.targets_lengths.set_shape(self._placeholders[5].shape)
+			self.wavs.set_shape(self._placeholders[5].shape)
+			self.identities.set_shape(self._placeholders[6].shape)
+			self.targets_lengths.set_shape(self._placeholders[7].shape)
 
 			# Create eval queue for buffering eval data
-			eval_queue = tf.FIFOQueue(1, [tf.int32, tf.int32, tf.float32, tf.float32, tf.float32, tf.int32], name='eval_queue')
+			eval_queue = tf.FIFOQueue(1, [tf.int32, tf.int32, tf.float32, tf.float32, tf.float32, tf.float32, tf.int32, tf.int32], name='eval_queue')
 			self._eval_enqueue_op = eval_queue.enqueue(self._placeholders)
-			self.eval_inputs, self.eval_input_lengths, self.eval_mel_targets, self.eval_token_targets, \
-				self.eval_linear_targets, self.eval_targets_lengths = eval_queue.dequeue()
+			self.eval_inputs, self.eval_input_lengths, self.eval_mel_targets, self.eval_token_targets, self.eval_linear_targets, self.eval_wavs, self.eval_identities, self.eval_targets_lengths = eval_queue.dequeue()
 
 			self.eval_inputs.set_shape(self._placeholders[0].shape)
 			self.eval_input_lengths.set_shape(self._placeholders[1].shape)
 			self.eval_mel_targets.set_shape(self._placeholders[2].shape)
 			self.eval_token_targets.set_shape(self._placeholders[3].shape)
 			self.eval_linear_targets.set_shape(self._placeholders[4].shape)
-			self.eval_targets_lengths.set_shape(self._placeholders[5].shape)
+			self.eval_wavs.set_shape(self._placeholders[5].shape)
+			self.eval_identities.set_shape(self._placeholders[6].shape)
+			self.eval_targets_lengths.set_shape(self._placeholders[7].shape)
 
 	def start_threads(self, session):
 		self._session = session
@@ -122,11 +150,13 @@ class Feeder:
 		text = meta[5]
 
 		input_data = np.asarray(text_to_sequence(text, self._cleaner_names), dtype=np.int32)
-		mel_target = np.load(os.path.join(self._mel_dir, meta[1]))
+		mel_target = np.load(meta[1])
 		#Create parallel sequences containing zeros to represent a non finished sequence
 		token_target = np.asarray([0.] * (len(mel_target) - 1))
-		linear_target = np.load(os.path.join(self._linear_dir, meta[2]))
-		return (input_data, mel_target, token_target, linear_target, len(mel_target))
+		linear_target = np.load(meta[2])
+		wav_target = np.load(meta[0])
+		identity = int(meta[6])
+		return (input_data, mel_target, token_target, linear_target, wav_target, identity, len(mel_target))
 
 	def make_test_batches(self):
 		start = time.time()
@@ -186,11 +216,13 @@ class Feeder:
 		text = meta[5]
 
 		input_data = np.asarray(text_to_sequence(text, self._cleaner_names), dtype=np.int32)
-		mel_target = np.load(os.path.join(self._mel_dir, meta[1]))
+		mel_target = np.load(meta[1])
 		#Create parallel sequences containing zeros to represent a non finished sequence
 		token_target = np.asarray([0.] * (len(mel_target) - 1))
-		linear_target = np.load(os.path.join(self._linear_dir, meta[2]))
-		return (input_data, mel_target, token_target, linear_target, len(mel_target))
+		linear_target = np.load(meta[2])
+		wav_target = np.load(meta[0])
+		identity = int(meta[6])
+		return (input_data, mel_target, token_target, linear_target, wav_target, identity, len(mel_target))
 
 
 	def _prepare_batch(self, batch, outputs_per_step):
@@ -201,8 +233,10 @@ class Feeder:
 		#Pad sequences with 1 to infer that the sequence is done
 		token_targets = self._prepare_token_targets([x[2] for x in batch], outputs_per_step)
 		linear_targets = self._prepare_targets([x[3] for x in batch], outputs_per_step)
+		wavs = self._prepare_inputs([x[4] for x in batch])
+		identities = np.asarray([x[5] for x in batch], dtype=np.int32)
 		targets_lengths = np.asarray([x[-1] for x in batch], dtype=np.int32) #Used to mask loss
-		return (inputs, input_lengths, mel_targets, token_targets, linear_targets, targets_lengths)
+		return (inputs, input_lengths, mel_targets, token_targets, linear_targets, wavs, identities, targets_lengths)
 
 	def _prepare_inputs(self, inputs):
 		max_len = max([len(x) for x in inputs])

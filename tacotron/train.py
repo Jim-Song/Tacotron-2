@@ -1,5 +1,5 @@
 import argparse
-import os
+import os, json
 import subprocess
 import time
 import traceback
@@ -53,18 +53,18 @@ def add_eval_stats(summary_writer, step, linear_loss, before_loss, after_loss, s
 def time_string():
 	return datetime.now().strftime('%Y-%m-%d %H:%M')
 
-def model_train_mode(args, feeder, hparams, global_step):
+def model_train_mode(args, feeder, hparams, global_step, id_num):
 	with tf.variable_scope('model', reuse=tf.AUTO_REUSE) as scope:
 		model_name = None
 		if args.model == 'Tacotron-2':
 			model_name = 'Tacotron'
 		model = create_model(model_name or args.model, hparams)
 		if hparams.predict_linear:
-			model.initialize(feeder.inputs, feeder.input_lengths, feeder.mel_targets, feeder.token_targets, linear_targets=feeder.linear_targets,
+			model.initialize(feeder.inputs, feeder.input_lengths, feeder.mel_targets, feeder.token_targets, linear_targets=feeder.linear_targets, identities=feeder.identities, id_num=id_num,
 				targets_lengths=feeder.targets_lengths, global_step=global_step,
 				is_training=True)
 		else:
-			model.initialize(feeder.inputs, feeder.input_lengths, feeder.mel_targets, feeder.token_targets,
+			model.initialize(feeder.inputs, feeder.input_lengths, feeder.mel_targets, feeder.token_targets, identities=feeder.identities, id_num=id_num,
 				targets_lengths=feeder.targets_lengths, global_step=global_step,
 				is_training=True)
 		model.add_loss()
@@ -72,21 +72,45 @@ def model_train_mode(args, feeder, hparams, global_step):
 		stats = add_train_stats(model, hparams)
 		return model, stats
 
-def model_test_mode(args, feeder, hparams, global_step):
+def model_test_mode(args, feeder, hparams, global_step, id_num):
 	with tf.variable_scope('model', reuse=tf.AUTO_REUSE) as scope:
 		model_name = None
 		if args.model == 'Tacotron-2':
 			model_name = 'Tacotron'
 		model = create_model(model_name or args.model, hparams)
 		if hparams.predict_linear:
-			model.initialize(feeder.eval_inputs, feeder.eval_input_lengths, feeder.eval_mel_targets, feeder.eval_token_targets,
-				linear_targets=feeder.eval_linear_targets, targets_lengths=feeder.eval_targets_lengths, global_step=global_step,
+			model.initialize(feeder.eval_inputs, feeder.eval_input_lengths, feeder.eval_mel_targets, feeder.eval_token_targets, linear_targets=feeder.eval_linear_targets, identities=feeder.eval_identities, id_num=id_num,
+							 targets_lengths=feeder.eval_targets_lengths, global_step=global_step,
 				is_training=False, is_evaluating=True)
 		else:
-			model.initialize(feeder.eval_inputs, feeder.eval_input_lengths, feeder.eval_mel_targets, feeder.eval_token_targets,
+			model.initialize(feeder.eval_inputs, feeder.eval_input_lengths, feeder.eval_mel_targets, feeder.eval_token_targets, identities=feeder.eval_identities, id_num=id_num,
 				targets_lengths=feeder.eval_targets_lengths, global_step=global_step, is_training=False, is_evaluating=True)
 		model.add_loss()
 		return model
+
+
+def get_input_paths_list_and_id_num(tacotron_input):
+	if tacotron_input == 'english_all':
+		tacotron_input = 'M-AILABS_mary_ann,M-AILABS_judy_bieber,M-AILABS_elizabeth_klett,ljspeech,M-AILABS_elliot_miller,vctk'
+
+	tacotron_input_list = tacotron_input.split(',')
+	with open('train_data_dict.json', 'r') as f:
+		train_data_dict = json.load(f)
+		input_path_list = []
+	for item in tacotron_input_list:
+		input_path_list.append(train_data_dict[item])
+	#get id_num
+	id_num = 0
+	for item in input_path_list:
+		crrt_id_num = 0
+		with open(item, 'r') as f:
+			for line in f:
+				line = line.strip().split('|')
+				if int(line[6]) > crrt_id_num:
+					crrt_id_num = int(line[6])
+		id_num += crrt_id_num
+	return input_path_list, id_num
+
 
 def train(log_dir, args, hparams):
 	save_dir = os.path.join(log_dir, 'taco_pretrained')
@@ -107,16 +131,19 @@ def train(log_dir, args, hparams):
 	os.makedirs(tensorboard_dir, exist_ok=True)
 
 	checkpoint_path = os.path.join(save_dir, 'tacotron_model.ckpt')
-	input_path = os.path.join(args.base_dir, args.tacotron_input)
+
+	input_path_list, id_num = get_input_paths_list_and_id_num(args.tacotron_input)
+
 
 	if hparams.predict_linear:
 		linear_dir = os.path.join(log_dir, 'linear-spectrograms')
 		os.makedirs(linear_dir, exist_ok=True)
 
 	log('Checkpoint path: {}'.format(checkpoint_path))
-	log('Loading training data from: {}'.format(input_path))
+	log('Loading training data from: {}'.format(str(input_path_list)))
 	log('Using model: {}'.format(args.model))
 	log(hparams_debug_string())
+	log('id num: {}'.format(str(id_num)))
 
 	#Start by setting a seed for repeatability
 	tf.set_random_seed(hparams.tacotron_random_seed)
@@ -124,12 +151,12 @@ def train(log_dir, args, hparams):
 	#Set up data feeder
 	coord = tf.train.Coordinator()
 	with tf.variable_scope('datafeeder') as scope:
-		feeder = Feeder(coord, input_path, hparams)
+		feeder = Feeder(coord, input_path_list, hparams)
 
 	#Set up model:
 	global_step = tf.Variable(0, name='global_step', trainable=False)
-	model, stats = model_train_mode(args, feeder, hparams, global_step)
-	eval_model = model_test_mode(args, feeder, hparams, global_step)
+	model, stats = model_train_mode(args, feeder, hparams, global_step, id_num)
+	eval_model = model_test_mode(args, feeder, hparams, global_step, id_num)
 
 	#Book keeping
 	step = 0

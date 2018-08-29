@@ -58,6 +58,7 @@ hparams = tf.contrib.training.HParams(
 	stop_at_any = True, #Determines whether the decoder should stop when predicting <stop> to any frame or to all of them
 
 	embedding_dim = 512, #dimension of embedding space
+	embedding_id_channels = 64,
 
 	enc_conv_num_layers = 3, #number of encoder convolutional layers
 	enc_conv_kernel_size = (5, ), #size of encoder convolution filters for each layer

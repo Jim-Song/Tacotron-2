@@ -16,7 +16,7 @@ class Tacotron():
 		self._hparams = hparams
 
 
-	def initialize(self, inputs, input_lengths, mel_targets=None, stop_token_targets=None, linear_targets=None, targets_lengths=None, gta=False,
+	def initialize(self, inputs, input_lengths, mel_targets=None, stop_token_targets=None, linear_targets=None, targets_lengths=None, identities=None, id_num=1, gta=False,
 			global_step=None, is_training=False, is_evaluating=False):
 		"""
 		Initializes the model for inference
@@ -58,8 +58,24 @@ class Tacotron():
 			# Embeddings ==> [batch_size, sequence_length, embedding_dim]
 			embedding_table = tf.get_variable(
 				'inputs_embedding', [len(symbols), hp.embedding_dim], dtype=tf.float32)
-			embedded_inputs = tf.nn.embedding_lookup(embedding_table, inputs)
+			embedded_text_inputs = tf.nn.embedding_lookup(embedding_table, inputs)
 
+			if identities is not None and id_num > 1:
+				embedding_id_channels = min(hp.embedding_id_channels, id_num)
+				embedding_id_table = tf.get_variable('embedding_id', [id_num, embedding_id_channels],
+													 dtype=tf.float32,
+													 initializer=tf.truncated_normal_initializer(stddev=0.5))
+				embedded_id_inputs = tf.nn.embedding_lookup(embedding_id_table, identities)  # [N, 64]
+				embedded_id_inputs = tf.expand_dims(embedded_id_inputs, 1)  # [N, 1, 32]
+				embedded_id_inputs = tf.tile(embedded_id_inputs, [1, tf.shape(inputs)[1], 1],
+											 name=None)  # [N, T_in, 32]
+				embedded_inputs = tf.concat([embedded_text_inputs, embedded_id_inputs], 2)  # [N, T_in, 288]
+				log('multi-speaker')
+			else:
+				embedded_inputs = embedded_text_inputs
+				log('single speaker')
+			print(identities)
+			print(id_num)
 
 			#Encoder Cell ==> [batch_size, encoder_steps, encoder_lstm_units]
 			encoder_cell = TacotronEncoderCell(
@@ -143,8 +159,8 @@ class Tacotron():
 
 			if post_condition:
 				# Add post-processing CBHG:
-			    post_outputs = post_cbhg(mel_outputs, hp.num_mels, is_training)           # [N, T_out, 256]
-			    linear_outputs = tf.layers.dense(post_outputs, hp.num_freq)
+				post_outputs = post_cbhg(mel_outputs, hp.num_mels, is_training)           # [N, T_out, 256]
+				linear_outputs = tf.layers.dense(post_outputs, hp.num_freq)
 
 			#Grab alignments from the final decoder state
 			alignments = tf.transpose(final_decoder_state.alignment_history.stack(), [1, 2, 0])
