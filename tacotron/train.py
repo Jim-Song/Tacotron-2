@@ -103,11 +103,22 @@ def get_input_paths_list_and_id_num(tacotron_input):
 	id_num = 0
 	for item in input_path_list:
 		crrt_id_num = 0
+		max_len = 0
+		len_bucket = [0] * 10
 		with open(item, 'r') as f:
 			for line in f:
 				line = line.strip().split('|')
 				if int(line[6]) > crrt_id_num:
 					crrt_id_num = int(line[6])
+				if int(line[3]) > max_len:
+					max_len = int(line[3])
+				len_round = int((int(line[3]) - 200000)/15000)
+				len_round = min(max(len_round, 0), 9)
+				len_bucket[len_round] += 1
+		print(item)
+		print(max_len)
+		print(len_bucket)
+		print('[215000, 230000, 245000, 260000, 275000, 290000, 305000, 320000, 335000, 350000]')
 		id_num += crrt_id_num
 	return input_path_list, id_num
 
@@ -162,7 +173,7 @@ def train(log_dir, args, hparams):
 	step = 0
 	time_window = ValueWindow(100)
 	loss_window = ValueWindow(100)
-	saver = tf.train.Saver(max_to_keep=3)
+	saver = tf.train.Saver(max_to_keep=3, keep_checkpoint_every_n_hours=8)
 
 	log('Tacotron training set to a maximum of {} steps'.format(args.tacotron_train_steps))
 

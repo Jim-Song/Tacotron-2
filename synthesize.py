@@ -85,6 +85,10 @@ def main():
 		if args.mode == 'synthesis':
 			raise ValueError('I don\'t recommend running WaveNet on entire dataset.. The world might end before the synthesis :) (only eval allowed)')
 
+	if args.description is not None:
+		output_dir = 'tacotron_' + args.output_dir
+		args.mels_dir = os.path.join(output_dir, args.description, 'eval')
+
 	taco_checkpoint, wave_checkpoint, hparams = prepare_run(args)
 	sentences = get_sentences(args)
 
