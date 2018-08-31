@@ -15,10 +15,10 @@ def prepare_run(args):
 	os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 	run_name = args.name or args.tacotron_name or args.model
-	taco_checkpoint = os.path.join('logs-' + run_name, args.description, 'taco_' + args.checkpoint)
+	taco_checkpoint = os.path.join('logs-' + run_name, 'taco_' + args.checkpoint)
 
 	run_name = args.name or args.wavenet_name or args.model
-	wave_checkpoint = os.path.join('logs-' + run_name, args.description, 'wave_' + args.checkpoint)
+	wave_checkpoint = os.path.join('logs-' + run_name, 'wave_' + args.checkpoint)
 	return taco_checkpoint, wave_checkpoint, modified_hp
 
 def get_sentences(args):
@@ -33,8 +33,6 @@ def synthesize(args, hparams, taco_checkpoint, wave_checkpoint, sentences):
 	log('Running End-to-End TTS Evaluation. Model: {}'.format(args.name or args.model))
 	log('Synthesizing mel-spectrograms from text..')
 	wavenet_in_dir = tacotron_synthesize(args, hparams, taco_checkpoint, sentences)
-	if args.tacotron_wav.lower() == True:
-		return
 	#Delete Tacotron model from graph
 	tf.reset_default_graph()
 	log('Synthesizing audio from mel-spectrograms.. (This may take a while)')
@@ -60,9 +58,6 @@ def main():
 	parser.add_argument('--GTA', default='True', help='Ground truth aligned synthesis, defaults to True, only considered in synthesis mode')
 	parser.add_argument('--text_list', default='', help='Text file contains list of texts to be synthesized. Valid if mode=eval')
 	parser.add_argument('--speaker_id', default=None, help='Defines the speakers ids to use when running standalone Wavenet on a folder of mels. this variable must be a comma-separated list of ids')
-	parser.add_argument('--tacotron_wav', default='False', type=str, help='use tacotron and griffin-lim to generate wav directly')
-	parser.add_argument('--description', default=None, type=str, help='used to distinguish different training')
-
 	args = parser.parse_args()
 
 	accepted_models = ['Tacotron', 'WaveNet', 'Tacotron-2']
@@ -84,10 +79,6 @@ def main():
 			warn('Requested a live evaluation with Tacotron-2, Wavenet will not be used!')
 		if args.mode == 'synthesis':
 			raise ValueError('I don\'t recommend running WaveNet on entire dataset.. The world might end before the synthesis :) (only eval allowed)')
-
-	if args.description is not None:
-		output_dir = 'tacotron_' + args.output_dir
-		args.mels_dir = os.path.join(output_dir, args.description, 'eval')
 
 	taco_checkpoint, wave_checkpoint, hparams = prepare_run(args)
 	sentences = get_sentences(args)

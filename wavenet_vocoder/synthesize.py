@@ -10,8 +10,8 @@ from wavenet_vocoder.synthesizer import Synthesizer
 
 
 def run_synthesis(args, checkpoint_path, output_dir, hparams):
-	log_dir = os.path.join(output_dir, args.description, 'plots')
-	wav_dir = os.path.join(output_dir, args.description, 'wavs')
+	log_dir = os.path.join(output_dir, 'plots')
+	wav_dir = os.path.join(output_dir, 'wavs')
 
 	#We suppose user will provide correct folder depending on training method
 	log(hparams_debug_string())
