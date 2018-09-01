@@ -87,6 +87,7 @@ hparams = tf.contrib.training.HParams(
 	predict_linear = True, #Whether to add a post-processing network to the Tacotron to predict linear spectrograms (True mode Not tested!!)
 
 	chinese_dict = False,
+	per_cen_phone_input = 0.01,
 	###########################################################################################################################################
 
 

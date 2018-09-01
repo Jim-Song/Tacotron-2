@@ -1,4 +1,4 @@
-import os
+import os, json, random
 import threading
 import time
 import traceback
@@ -138,6 +138,20 @@ class Feeder:
 			self.eval_identities.set_shape(self._placeholders[6].shape)
 			self.eval_targets_lengths.set_shape(self._placeholders[7].shape)
 
+		# Load phone dict: If enabled, this will randomly substitute some words in the training data with
+		# their ARPABet equivalents, which will allow you to also pass ARPABet to the model for
+		# synthesis (useful for proper nouns, etc.)
+		if hparams.per_cen_phone_input:
+			char_2_phone_dict_path = './tacotron/utils/symbols/char_2_phone_dict.json'
+			if not os.path.isfile(char_2_phone_dict_path):
+				raise Exception('no char_2_phone dict found')
+			with open(char_2_phone_dict_path, 'r') as f:
+				self._phone_dict = json.load(f)
+				log('Loaded characters to phones dict from %s' % char_2_phone_dict_path)
+		else:
+			self._phone_dict = None
+
+
 	def start_threads(self, session):
 		self._session = session
 		thread = threading.Thread(name='background', target=self._enqueue_next_train_group)
@@ -220,7 +234,20 @@ class Feeder:
 		self._train_offset += 1
 
 		text = meta[5]
-
+		if self._phone_dict:
+			self._p_phone_sub = random.random() - 0.5 + (self._hparams.per_cen_phone_input * 2 - 0.5)
+			text2 = ''
+			for word in text.split(' '):
+				exist_alpha = False
+				for item in word:
+					if is_alphabet(item):
+						exist_alpha = True
+						break
+				phone = self._maybe_get_arpabet(word)
+				if not text2 and exist_alpha:
+					text2 = text2 + ' '
+				text2 += phone
+			text = text2
 		input_data = np.asarray(self.text_to_sequence(text, self._cleaner_names), dtype=np.int32)
 		mel_target = np.load(meta[1])
 		#Create parallel sequences containing zeros to represent a non finished sequence
@@ -229,6 +256,16 @@ class Feeder:
 		wav_target = np.load(meta[0])
 		identity = int(meta[6])
 		return (input_data, mel_target, token_target, linear_target, wav_target, identity, len(mel_target))
+
+
+	def _maybe_get_arpabet(self, word):
+		try:
+			phone = self._phone_dict[word]
+			phone = ' '.join(phone)
+		except:
+			phone = None
+		# log('%s is not found in the char 2 phone dict' % word)
+		return '{%s}' % phone if phone is not None and random.random() < self._p_phone_sub else word
 
 
 	def _prepare_batch(self, batch, outputs_per_step):
@@ -272,3 +309,10 @@ class Feeder:
 	def _round_down(self, x, multiple):
 		remainder = x % multiple
 		return x if remainder == 0 else x - remainder
+
+def is_alphabet(uchar):
+    """判断一个unicode是否是英文字母"""
+    if (uchar >= u'\u0041' and uchar<=u'\u005a') or (uchar >= u'\u0061' and uchar<=u'\u007a'):
+        return True
+    else:
+        return False
