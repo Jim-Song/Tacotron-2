@@ -5,6 +5,7 @@ The default is a set of ASCII characters that works well for English or text tha
 through Unidecode. For other data, you can modify _characters. See TRAINING_DATA.md for details.
 '''
 from . import cmudict
+import json
 
 _pad        = '_'
 _eos        = '~'
@@ -15,3 +16,8 @@ _arpabet = ['@' + s for s in cmudict.valid_symbols]
 
 # Export all symbols:
 symbols = [_pad, _eos] + list(_characters) + _arpabet
+
+with open('./tacotron/tuils/normal.json', 'r') as f:
+	symbols2 = [_pad, _eos] + json.load(f)
+
+
