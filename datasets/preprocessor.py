@@ -105,6 +105,64 @@ def build_from_path_vctk(hparams, input_dir, mel_dir, linear_dir, wav_dir, n_job
 	return [future.result() for future in tqdm(futures) if future.result() is not None]
 
 
+def build_from_path_THCHS(hparams, input_dir, mel_dir, linear_dir, wav_dir, n_jobs=12, tqdm=lambda x: x):
+	"""
+	Preprocesses the speech dataset from a gven input path to given output directories
+
+	Args:
+		- hparams: hyper parameters
+		- input_dir: input directory that contains the files to prerocess
+		- mel_dir: output directory of the preprocessed speech mel-spectrogram dataset
+		- linear_dir: output directory of the preprocessed speech linear-spectrogram dataset
+		- wav_dir: output directory of the preprocessed speech audio dataset
+		- n_jobs: Optional, number of worker process to parallelize across
+		- tqdm: Optional, provides a nice progress bar
+
+	Returns:
+		- A list of tuple describing the train examples. this should be written to train.txt
+	"""
+
+	# We use ProcessPoolExecutor to parallelize across processes, this is just for
+	# optimization purposes and it can be omited
+
+	executor = ProcessPoolExecutor(max_workers=n_jobs)
+	futures = []
+
+	pattern = '([A-Z0-9]+)\\_([0-9]+)\\.(wav)'
+	input_path = os.path.join(input_dir, 'data_thchs30/data_thchs30/data')
+	data_name = 'THCHS'
+	id_dict = {}
+	ct = 1
+
+	female_highquality_id_list = ['A2','A4','A8','A11','A12','A13','A14','A19','A22','A23','A32','A34','B2','B4','B7',
+								  'B11','B12','B15','B22','B31','B32','C2','C4','C7','C12','C13','C17','C18','C19',
+								  'C20','C21','C22','C23','C31','C32','D4','D6','D7','D11','D12','D13','D21','D31']
+	female_low_quality_id_list = ['A6','A7','A36','B6','B33','C6','C14','D32']
+	male_id_list = ['A5','A9','A33','A35','B8','B21','B34','C8','D8']
+
+	for temp_filename in os.listdir(input_path):
+		filename, extension = os.path.splitext(temp_filename)
+		if not extension == '.wav':
+			continue
+		basename = filename
+		id = re.findall(pattern, temp_filename)[0][0]  # re.findall(pattern, wav_filename) = [('A7', '157', 'wav.trn')]
+		if not id in female_highquality_id_list:
+			continue
+		if not id in id_dict.keys():
+			id_dict[id] = ct
+			ct += 1
+		wav_path = os.path.join(input_path, filename + '.wav')
+		trn_path = os.path.join(input_path, filename + '.wav.trn')
+		with open(trn_path, 'r') as f1:
+			text = f1.readline().strip()  # '时来运转 遇上 眼前 这位 知音 姑娘 还 因 工程 吃紧 屡 推 婚期\n'
+			#phone1 = f1.readline()  # 'zong3 er2 yan2 zhi1 wu2 lun4 na2 li3 ren2 chi1 yi4 wan3 she2 he2 mao1 huo4 zhe3 wa1 he2 shan4 yu2 yu2 xing4 fu2 de5 jia1 ting2 shi4 jue2 bu2 hui4 you3 sun3 shang1 de5\n'
+			#phone2 = f1.readline()  # 'z ong3 ee er2 ii ian2 zh ix1 uu u2 l un4 n a2 l i3 r en2 ch ix1 ii i4 uu uan3 sh e2 h e2 m ao1 h uo4 zh e3 uu ua1 h e2 sh an4 vv v2 vv v2 x ing4 f u2 d e5 j ia1 t ing2 sh ix4 j ve2 b u2 h ui4 ii iu3 s un3 sh ang1 d e5\n\n'
+		# text2 = re.sub(' ', '', text.strip())  # '时来运转遇上眼前这位知音姑娘还因工程吃紧屡推婚期\n
+		futures.append(executor.submit(partial(_process_utterance, mel_dir, linear_dir, wav_dir, basename, wav_path, text, hparams, id_dict[id])))
+
+	return [future.result() for future in tqdm(futures) if future.result() is not None]
+
+
 
 
 def _process_utterance(mel_dir, linear_dir, wav_dir, index, wav_path, text, hparams, speaker_id):

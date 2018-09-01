@@ -21,7 +21,17 @@ def preprocess_vctk(args, input_folders, output_folder, hparams):
 	write_metadata(args.dataset, metadata, out_dir)
 
 
+def preprocess_THCHS(args, input_folders, output_folder, hparams):
+	out_dir = os.path.join(output_folder, args.dataset)
+	mel_dir = os.path.join(out_dir, 'mels')
+	wav_dir = os.path.join(out_dir, 'audio')
+	linear_dir = os.path.join(out_dir, 'linear')
+	os.makedirs(mel_dir, exist_ok=True)
+	os.makedirs(wav_dir, exist_ok=True)
+	os.makedirs(linear_dir, exist_ok=True)
 
+	metadata = preprocessor.build_from_path_THCHS(hparams, input_folders, mel_dir, linear_dir, wav_dir, args.n_jobs, tqdm=tqdm)
+	write_metadata(args.dataset, metadata, out_dir)
 
 
 def preprocess(args, input_folders, out_dir, hparams):
@@ -109,6 +119,8 @@ def norm_data(args):
 
 	if args.dataset == 'vctk':
 		return args.data_path
+	if args.dataset == 'THCHS':
+		return args.data_path
 
 
 
@@ -125,6 +137,9 @@ def run_preprocess(args, hparams):
 		preprocess(args, input_folders, output_folder, hparams)
 	if args.dataset == 'vctk':
 		preprocess_vctk(args, input_folders, output_folder, hparams)
+	if args.dataset == 'THCHS':
+		preprocess_THCHS(args, input_folders, output_folder, hparams)
+
 
 
 def main():
@@ -140,7 +155,7 @@ def main():
 	parser.add_argument('--book', default='northandsouth')
 	parser.add_argument('--output', default='training_data')
 	parser.add_argument('--n_jobs', type=int, default=cpu_count())
-	parser.add_argument('--dataset', type=str, choices=['THCHS', 'aishell', 'ljspeech', 'M-AILABS', 'vctk'])
+	parser.add_argument('--dataset', type=str, choices=['THCHS', 'aishell', 'ljspeech', 'M-AILABS', 'vctk', 'THCHS'])
 	parser.add_argument('--data_path', type=str, default='data/LJSpeech-1.1')
 
 	args = parser.parse_args()
@@ -161,5 +176,6 @@ python3 preprocess.py --dataset M-AILABS --language en_US --voice female --reade
 python3 preprocess.py --dataset M-AILABS --language en_US --voice male --reader elliot_miller --merge_books True --data_path data
 python3 preprocess.py --dataset M-AILABS --language en_UK --voice female --reader elizabeth_klett --merge_books True --data_path data
 python3 preprocess.py --dataset vctk --data_path data/VCTK-Corpus
+python3 preprocess.py --dataset THCHS --data_path data/THCHS
 
 '''
