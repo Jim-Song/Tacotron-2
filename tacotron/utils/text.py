@@ -45,7 +45,7 @@ def text_to_sequence(text, cleaner_names):
     return sequence
 
 
-def text_to_sequence2(text):
+def text_to_sequence2(text, cleaner_names):
     sequence = []
     while len(text):
         m = _curly_re.match(text)

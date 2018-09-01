@@ -17,7 +17,7 @@ _arpabet = ['@' + s for s in cmudict.valid_symbols]
 # Export all symbols:
 symbols = [_pad, _eos] + list(_characters) + _arpabet
 
-with open('./tacotron/tuils/normal.json', 'r') as f:
+with open('./tacotron/utils/normal.json', 'r') as f:
 	symbols2 = [_pad, _eos] + json.load(f)
 
 

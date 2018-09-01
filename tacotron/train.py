@@ -13,7 +13,7 @@ from hparams import hparams_debug_string
 from tacotron.feeder import Feeder
 from tacotron.models import create_model
 from tacotron.utils import ValueWindow, plot
-from tacotron.utils.text import sequence_to_text
+from tacotron.utils.text import sequence_to_text, sequence_to_text2
 from tqdm import tqdm
 
 log = infolog.log
@@ -140,6 +140,11 @@ def train(log_dir, args, hparams):
 	os.makedirs(eval_plot_dir, exist_ok=True)
 	os.makedirs(eval_wav_dir, exist_ok=True)
 	os.makedirs(tensorboard_dir, exist_ok=True)
+
+	sequence_to_text = sequence_to_text2
+
+	if hparams.chinese_dict:
+		sequence_to_text = sequence_to_text2
 
 	checkpoint_path = os.path.join(save_dir, 'tacotron_model.ckpt')
 

@@ -85,6 +85,8 @@ hparams = tf.contrib.training.HParams(
 
 	cross_entropy_pos_weight = 1, #Use class weights to reduce the stop token classes imbalance (by adding more penalty on False Negatives (FN)) (1 = disabled)
 	predict_linear = True, #Whether to add a post-processing network to the Tacotron to predict linear spectrograms (True mode Not tested!!)
+
+	chinese_dict = False,
 	###########################################################################################################################################
 
 
