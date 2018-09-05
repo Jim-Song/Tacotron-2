@@ -19,7 +19,7 @@ def run_live(args, checkpoint_path, hparams):
 	#Log to Terminal without keeping any records in files
 	log(hparams_debug_string())
 	synth = Synthesizer()
-	synth.load(checkpoint_path, hparams)
+	synth.load(checkpoint_path, hparams, speaker_id=args.speaker_id)
 
 	#Generate fast greeting message
 	greetings = 'Hello, Welcome to the Live testing tool. Please type a message and I will try to read it!'
@@ -54,13 +54,12 @@ def run_eval(args, checkpoint_path, output_dir, hparams, sentences):
 
 	log(hparams_debug_string())
 	synth = Synthesizer()
-	synth.load(checkpoint_path, hparams)
-
+	synth.load(checkpoint_path, hparams, speaker_id=args.speaker_id)
 
 	with open(os.path.join(eval_dir, 'map.txt'), 'w') as file:
 		for i, text in enumerate(tqdm(sentences)):
 			start = time.time()
-			mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None)
+			mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None, speaker_id=[args.speaker_id[i]])
 
 			file.write('{}|{}|{}\n'.format(text, mel_filename[0], speaker_id[0]))
 	log('synthesized mel spectrograms at {}'.format(eval_dir))
@@ -83,7 +82,7 @@ def run_synthesis(args, checkpoint_path, output_dir, hparams):
 	metadata_filename = os.path.join(args.input_dir, 'train.txt')
 	log(hparams_debug_string())
 	synth = Synthesizer()
-	synth.load(checkpoint_path, hparams, gta=GTA)
+	synth.load(checkpoint_path, hparams, gta=GTA, speaker_id=args.speaker_id)
 	with open(metadata_filename, encoding='utf-8') as f:
 		metadata = [line.strip().split('|') for line in f]
 		frame_shift_ms = hparams.hop_size / hparams.sample_rate
@@ -100,8 +99,9 @@ def run_synthesis(args, checkpoint_path, output_dir, hparams):
 			texts = [m[5] for m in meta]
 			mel_filenames = [os.path.join(mel_dir, m[1]) for m in meta]
 			wav_filenames = [os.path.join(wav_dir, m[0]) for m in meta]
+			speaker_id = [int(m[6]) for m in meta]
 			basenames = [os.path.basename(m).replace('.npy', '').replace('mel-', '') for m in mel_filenames]
-			mel_output_filenames, speaker_ids = synth.synthesize(texts, basenames, synth_dir, None, mel_filenames)
+			mel_output_filenames, speaker_ids = synth.synthesize(texts, basenames, synth_dir, None, mel_filenames, speaker_id=speaker_id)
 
 			for elems in zip(wav_filenames, mel_filenames, mel_output_filenames, speaker_ids, texts):
 				file.write('|'.join([str(x) for x in elems]) + '\n')
@@ -118,6 +118,8 @@ def tacotron_synthesize(args, hparams, checkpoint, sentences=None):
 		raise RuntimeError('Failed to load checkpoint at {}'.format(checkpoint))
 
 	if args.mode == 'eval':
+		# preprocess args.speaker_id
+		args.speaker_id = args.speaker_id.split(',')
 		return run_eval(args, checkpoint_path, output_dir, hparams, sentences)
 	elif args.mode == 'synthesis':
 		return run_synthesis(args, checkpoint_path, output_dir, hparams)

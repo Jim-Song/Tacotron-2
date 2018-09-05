@@ -179,6 +179,7 @@ class Tacotron():
 				self.linear_targets = linear_targets
 			self.mel_targets = mel_targets
 			self.targets_lengths = targets_lengths
+			self.identities = identities
 			log('Initialized Tacotron model. Dimensions (? = dynamic shape): ')
 			log('  Train mode:               {}'.format(is_training))
 			log('  Eval mode:                {}'.format(is_evaluating))

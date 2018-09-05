@@ -83,6 +83,13 @@ def main():
 	taco_checkpoint, wave_checkpoint, hparams = prepare_run(args)
 	sentences = get_sentences(args)
 
+	#preprocess args.speaker_id
+	if args.speaker_id is not None:
+		args.speaker_id = args.speaker_id.split(',')
+		if not len(speaker_id) == len(args.sentences):
+			args.speaker_id = [args.speaker_id[0]] * len(args.sentences)
+		args.speaker_id = ','.join(args.speaker_id)
+
 	if args.model == 'Tacotron':
 		_ = tacotron_synthesize(args, hparams, taco_checkpoint, sentences)
 	elif args.model == 'WaveNet':

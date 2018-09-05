@@ -12,20 +12,34 @@ from librosa import effects
 from tacotron.models import create_model
 from tacotron.utils import plot
 from tacotron.utils.text import text_to_sequence
+from tensorflow.python import pywrap_tensorflow
 
 
 class Synthesizer:
-	def load(self, checkpoint_path, hparams, gta=False, model_name='Tacotron'):
+	def load(self, checkpoint_path, hparams, gta=False, model_name='Tacotron', speaker_id=None):
 		log('Constructing model: %s' % model_name)
 		inputs = tf.placeholder(tf.int32, [None, None], 'inputs')
 		input_lengths = tf.placeholder(tf.int32, [None], 'input_lengths')
 		targets = tf.placeholder(tf.float32, [None, None, hparams.num_mels], 'mel_targets')
+		#specify the id_num and outputs_per_step
+		reader2 = pywrap_tensorflow.NewCheckpointReader(checkpoint_path)
+		var_to_shape_map = reader2.get_variable_to_shape_map()
+		id_num = 1
+		if speaker_id is not None:
+			try:
+				id_num = var_to_shape_map['model/inference/embedding_id'][0]
+			except:
+				id_num = 1
+				print('Warning: \n this tacotron model is single speaker trained, do not input speaker_id in args')
+		outputs_per_step = var_to_shape_map['model/inference/decoder/linear_transform/projection_linear_transform/bias'][0] / hparams.num_mels
+		hparams.outputs_per_step = outputs_per_step
+
 		with tf.variable_scope('model') as scope:
 			self.model = create_model(model_name, hparams)
 			if gta:
-				self.model.initialize(inputs, input_lengths, targets, gta=gta)
+				self.model.initialize(inputs, input_lengths, targets, gta=gta, id_num=id_num)
 			else:
-				self.model.initialize(inputs, input_lengths)
+				self.model.initialize(inputs, input_lengths, id_num=id_num)
 			self.mel_outputs = self.model.mel_outputs
 			self.linear_outputs = self.model.linear_outputs if (hparams.predict_linear and not gta) else None
 			self.alignments = self.model.alignments
@@ -53,7 +67,7 @@ class Synthesizer:
 		saver.restore(self.session, checkpoint_path)
 
 
-	def synthesize(self, texts, basenames, out_dir, log_dir, mel_filenames):
+	def synthesize(self, texts, basenames, out_dir, log_dir, mel_filenames, speaker_id=None):
 		hparams = self._hparams
 		cleaner_names = [x.strip() for x in hparams.cleaners.split(',')]
 		seqs = [np.asarray(text_to_sequence(text, cleaner_names)) for text in texts]
@@ -69,6 +83,8 @@ class Synthesizer:
 			target_lengths = [len(np_target) for np_target in np_targets]
 			padded_targets = self._prepare_targets(np_targets, self._hparams.outputs_per_step)
 			feed_dict[self.model.mel_targets] = padded_targets.reshape(len(np_targets), -1, 80)
+		if speaker_id is not None:
+			feed_dict[self.model.identities] = speaker_id
 
 		if self.gta or not hparams.predict_linear:
 			mels, alignments = self.session.run([self.mel_outputs, self.alignments], feed_dict=feed_dict)
@@ -108,9 +124,9 @@ class Synthesizer:
 		for i, mel in enumerate(mels):
 			#Get speaker id for global conditioning (only used with GTA generally)
 			if hparams.gin_channels > 0:
-				raise RuntimeError('Please set the speaker_id rule in line 99 of tacotron/synthesizer.py to allow for global condition usage later.')
-				speaker_id = '<no_g>' #set the rule to determine speaker id. By using the file basename maybe? (basenames are inside "basenames" variable)
-				speaker_ids.append(speaker_id) #finish by appending the speaker id. (allows for different speakers per batch if your model is multispeaker)
+				#raise RuntimeError('Please set the speaker_id rule in line 99 of tacotron/synthesizer.py to allow for global condition usage later.')
+				#speaker_id = '<no_g>' #set the rule to determine speaker id. By using the file basename maybe? (basenames are inside "basenames" variable)
+				speaker_ids.append(speaker_id[i]) #finish by appending the speaker id. (allows for different speakers per batch if your model is multispeaker)
 			else:
 				speaker_id = '<no_g>'
 				speaker_ids.append(speaker_id)
