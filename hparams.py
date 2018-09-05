@@ -225,6 +225,30 @@ hparams = tf.contrib.training.HParams(
 	This project covers a sequence to sequence model trained to predict a speech representation from an input sequence of characters. We show that\
 	the adopted architecture is able to perform this task with wild success.',
 	'Thank you so much for your support!',
+	],
+
+	sentences_Chinese =
+	['习近平多次强调',
+	 '安全是上海合作组织发展的前提',
+	 '务实合作是组织发展的原动力',
+	 '人文交流是组织发展的民意基础和社会基础',
+	 '安全、经济、人文三大领域',
+	 '上合组织各个成员国在政治上不断增强互信',
+	 '在经济上不断深化务实合作',
+	 '在民间交流中人文纽带越拉越紧',
+	 '逐步形成了安全',
+	 '经济与人文并重',
+	 '官方与民间并举的全面合作机制',
+	 '这是地区一体化进程的必然趋势',
+	 '也是上海合作组织未来发展的大方向',
+	 '直砍少年顶门',
+	 '那少年避向右侧',
+	 '左手剑一引',
+	 '青钢剑疾刺那汉子大腿',
+	 '两人剑法迅捷',
+	 '全力相搏',
+	 '练武厅东坐着二人',
+	 '上首是个四十左右的中年道姑',
 	]
 
 	)

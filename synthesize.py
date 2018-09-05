@@ -21,12 +21,15 @@ def prepare_run(args):
 	wave_checkpoint = os.path.join('logs-' + run_name, 'wave_' + args.checkpoint)
 	return taco_checkpoint, wave_checkpoint, modified_hp
 
-def get_sentences(args):
+def get_sentences(args, chinese_dict=False):
 	if args.text_list != '':
 		with open(args.text_list, 'rb') as f:
 			sentences = list(map(lambda l: l.decode("utf-8")[:-1], f.readlines()))
 	else:
-		sentences = hparams.sentences
+		if chinese_dict:
+			sentences = hparams.sentences_Chinese
+		else:
+			sentences = hparams.sentences
 	return sentences
 
 def synthesize(args, hparams, taco_checkpoint, wave_checkpoint, sentences):
@@ -81,14 +84,16 @@ def main():
 			raise ValueError('I don\'t recommend running WaveNet on entire dataset.. The world might end before the synthesis :) (only eval allowed)')
 
 	taco_checkpoint, wave_checkpoint, hparams = prepare_run(args)
-	sentences = get_sentences(args)
+	sentences = get_sentences(args, hparams.chinese_dict)
 
 	#preprocess args.speaker_id
 	if args.speaker_id is not None:
 		args.speaker_id = args.speaker_id.split(',')
-		if not len(speaker_id) == len(args.sentences):
+		if not len(args.speaker_id) == len(args.sentences):
 			args.speaker_id = [args.speaker_id[0]] * len(args.sentences)
 		args.speaker_id = ','.join(args.speaker_id)
+
+
 
 	if args.model == 'Tacotron':
 		_ = tacotron_synthesize(args, hparams, taco_checkpoint, sentences)
