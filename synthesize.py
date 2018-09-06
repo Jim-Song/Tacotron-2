@@ -89,7 +89,7 @@ def main():
 	#preprocess args.speaker_id
 	if args.speaker_id is not None:
 		args.speaker_id = args.speaker_id.split(',')
-		if not len(args.speaker_id) == len(args.sentences):
+		if not len(args.speaker_id) == len(sentences):
 			args.speaker_id = [args.speaker_id[0]] * len(args.sentences)
 		args.speaker_id = ','.join(args.speaker_id)
 
