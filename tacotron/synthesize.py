@@ -82,7 +82,7 @@ def run_synthesis(args, checkpoint_path, output_dir, hparams):
 	metadata_filename = os.path.join(args.input_dir, 'train.txt')
 	log(hparams_debug_string())
 	synth = Synthesizer()
-	synth.load(checkpoint_path, hparams, gta=GTA, speaker_id=args.speaker_id)
+	synth.load(checkpoint_path, hparams, gta=GTA, speaker_id=[1])
 	with open(metadata_filename, encoding='utf-8') as f:
 		metadata = [line.strip().split('|') for line in f]
 		frame_shift_ms = hparams.hop_size / hparams.sample_rate

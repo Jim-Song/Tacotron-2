@@ -31,15 +31,19 @@ class Synthesizer:
 			except:
 				id_num = 1
 				print('Warning: \n this tacotron model is single speaker trained, do not input speaker_id in args')
+		if id_num > 1:
+			identities = tf.placeholder(tf.int32, [None], 'identities')
+		else:
+			identities = None
 		outputs_per_step = var_to_shape_map['model/inference/decoder/linear_transform/projection_linear_transform/bias'][0] / hparams.num_mels
 		hparams.outputs_per_step = outputs_per_step
 
 		with tf.variable_scope('model') as scope:
 			self.model = create_model(model_name, hparams)
 			if gta:
-				self.model.initialize(inputs, input_lengths, targets, gta=gta, id_num=id_num)
+				self.model.initialize(inputs, input_lengths, targets, gta=gta, id_num=id_num, identities=identities)
 			else:
-				self.model.initialize(inputs, input_lengths, id_num=id_num)
+				self.model.initialize(inputs, input_lengths, id_num=id_num, identities=identities)
 			self.mel_outputs = self.model.mel_outputs
 			self.linear_outputs = self.model.linear_outputs if (hparams.predict_linear and not gta) else None
 			self.alignments = self.model.alignments
