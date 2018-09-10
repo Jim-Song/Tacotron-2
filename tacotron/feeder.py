@@ -49,7 +49,7 @@ class Feeder:
 					line[0] = os.path.join(_audio_dir, line[0])
 					line[1] = os.path.join(_mel_dir, line[1])
 					line[2] = os.path.join(_linear_dir, line[2])
-					if int(line[4]) > hparams.max_iters:
+					if int(line[4]) < hparams.max_iters:
 						self._metadata.append(line)
 			id_num += crrt_id_num
 		frame_shift_ms = hparams.hop_size / hparams.sample_rate
