@@ -386,7 +386,7 @@ class WaveNet():
 			hp = self._hparams
 
 			#Adam with constant learning rate
-			learning_rate = self._noam_learning_rate_decay(hp.wavenet_learning_rate, global_step)
+			learning_rate = self._noam_learning_rate_decay(hp.wavenet_learning_rate, hp.wavenet_finial_learning_rate, global_step)
 			self.learning_rate = learning_rate
 			optimizer = tf.train.AdamOptimizer(learning_rate, hp.wavenet_adam_beta1,
 				hp.wavenet_adam_beta2, hp.wavenet_adam_epsilon)
@@ -411,11 +411,11 @@ class WaveNet():
 			assert tuple(self.variables) == variables #Verify all trainable variables are being averaged
 			self.optimize = self.ema.apply(variables)
 
-	def _noam_learning_rate_decay(self, init_lr, global_step):
+	def _noam_learning_rate_decay(self, init_lr, wavenet_finial_lr, global_step):
 		# Noam scheme from tensor2tensor:
-		warmup_steps = 4000.0
+		warmup_steps = 40000.0
 		step = tf.cast(global_step + 1, dtype=tf.float32)
-		return tf.maximum(init_lr * warmup_steps**0.5 * tf.minimum(step * warmup_steps**-1.5, step**-0.5), 1e-4)
+		return tf.maximum(init_lr * warmup_steps * tf.minimum(step * warmup_steps**-2, step**-1), wavenet_finial_lr)
 
 
 	def get_mask(self, input_lengths, maxlen=None):

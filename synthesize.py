@@ -64,7 +64,7 @@ def main():
 	args = parser.parse_args()
 
 	accepted_models = ['Tacotron', 'WaveNet', 'Tacotron-2']
-
+ls
 	if args.model not in accepted_models:
 		raise ValueError('please enter a valid model to synthesize with: {}'.format(accepted_models))
 
