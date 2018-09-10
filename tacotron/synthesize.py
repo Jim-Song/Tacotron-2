@@ -59,7 +59,10 @@ def run_eval(args, checkpoint_path, output_dir, hparams, sentences):
 	with open(os.path.join(eval_dir, 'map.txt'), 'w') as file:
 		for i, text in enumerate(tqdm(sentences)):
 			start = time.time()
-			mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None, speaker_id=[args.speaker_id[i]])
+			if args.speaker_id is not None:
+				mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None, speaker_id=[args.speaker_id[i]])
+			else:
+				mel_filename, speaker_id = synth.synthesize([text], [i+1], eval_dir, log_dir, None, speaker_id=None)
 
 			file.write('{}|{}|{}\n'.format(text, mel_filename[0], speaker_id[0]))
 	log('synthesized mel spectrograms at {}'.format(eval_dir))
@@ -119,7 +122,8 @@ def tacotron_synthesize(args, hparams, checkpoint, sentences=None):
 
 	if args.mode == 'eval':
 		# preprocess args.speaker_id
-		args.speaker_id = args.speaker_id.split(',')
+		if args.speaker_id is not None:
+			args.speaker_id = args.speaker_id.split(',')
 		return run_eval(args, checkpoint_path, output_dir, hparams, sentences)
 	elif args.mode == 'synthesis':
 		return run_synthesis(args, checkpoint_path, output_dir, hparams)

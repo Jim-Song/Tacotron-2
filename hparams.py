@@ -255,5 +255,5 @@ hparams = tf.contrib.training.HParams(
 
 def hparams_debug_string():
 	values = hparams.values()
-	hp = ['  %s: %s' % (name, values[name]) for name in sorted(values) if name != 'sentences' or 'sentences_Chinese']
+	hp = ['  %s: %s' % (name, values[name]) for name in sorted(values) if name != 'sentences' or name != 'sentences_Chinese']
 	return 'Hyperparameters:\n' + '\n'.join(hp)
